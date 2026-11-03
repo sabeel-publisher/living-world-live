@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>قارئ الحافظة</title>
+<style>
+  body { font-family: sans-serif; background:#111; color:#eee; text-align:center; padding:40px; }
+  button { font-size:22px; padding:14px 34px; border-radius:10px; border:0; background:#2e7d32; color:#fff; cursor:pointer; }
+  #out { margin-top:28px; font-size:20px; direction:ltr; unicode-bidi:plaintext; white-space:pre-wrap; word-break:break-all;
+         background:#1c1c1c; border:1px solid #444; border-radius:8px; padding:16px; min-height:30px; }
+</style>
+</head>
+<body>
+<h2>قارئ الحافظة — اضغط الزر لعرض ما في الحافظة</h2>
+<button id="btn">إظهار محتوى الحافظة</button>
+<pre id="out"></pre>
+<script>
+document.getElementById('btn').addEventListener('click', async () => {
+  const out = document.getElementById('out');
+  try {
+    const t = await navigator.clipboard.readText();
+    out.textContent = t;
+  } catch (e) {
+    out.textContent = 'ERROR: ' + e.name + ' — ' + e.message;
+  }
+});
+</script>
+</body>
+</html>
