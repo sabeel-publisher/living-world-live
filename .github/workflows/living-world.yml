@@ -1,0 +1,19 @@
+name: living-world-live
+on:
+  workflow_dispatch:
+jobs:
+  stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg + pillow
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
+          pip install --quiet pillow
+      - name: Stream the living world to Restream
+        env:
+          RST_KEY: ${{ secrets.RST_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          CMD_TOKEN: ${{ secrets.CMD_TOKEN }}
+        run: bash ci-stream/run.sh
