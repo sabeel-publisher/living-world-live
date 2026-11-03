@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>عالم يُولد مرة واحدة — أوفرلاي اللايف</title>
+<!--
+  ============================================================
+  أوفرلاي بث «عالم يُولد مرة واحدة» — TikTok LIVE (مقاس 9:16)
+  الاستخدام: افتح الملف كمصدر متصفح (Browser Source) في TikTok LIVE Studio
+  أو OBS بمقاس 1080×1920. العالم يبدأ فارغًا تمامًا.
+  ------------------------------------------------------------
+  دوال المشغّل (من وحدة تحكم المتصفح DevTools > Console):
+
+    __place(code, r, c, by)      ضع عنصرًا. r/c أرقام داخلية (صف 0-9 من فوق، عمود 0-11 من الشمال)
+    __placeAr(code, 'ب', 3, by)  نفس الشيء بإحداثيات الشات: حرف الصف + رقم العمود من اليمين
+    __decompose(r, c)            حلّل خلية (تحذف العنصر وتخصّب تربته — للزهرة لاحقًا)
+    __setPhase('طور البذور')     غيّر اسم الطور الظاهر
+    __banner('نص')               أظهر إعلان حدث (انبثاق/تبنٍّ) على الشاشة ثواني
+    __setWorldName('الاسم')     اكتب اسم العالم في لحظة الختام
+    __freeze()                   التجميد الختامي: يوقف الإضافة ويعرض العالم كاملًا
+    __life(1..4)                 يضوي/يطفي شرطًا من شروط الحياة الأربعة على الشريط
+                                 (١ مية لكل مكان · ٢ ضل على الطرق · ٣ نور عند التقاطعات · ٤ مركز بيجمع الكل)
+                                 المشغّل بيحكم بالاختبارات العلاقية في RULES-CARD.md — لا كشف تلقائي هنا
+
+  أكواد العناصر (نفس نموذج المحاكاة sim.py):
+    W نبع · S مجرى · Tp صنوبر · To بلوط · R طريق · X برج أسود · Z تمثال
+    G متسلّقة · D رمل/طين · F زهرة · V فراغ محميّ
+  أكواد يولّدها النظام وحده (انبثاق/تحوّل — لا يطلبها مشاهد):
+    A مقام أخضر · d دلتا · B حديقة · L منارة
+  ------------------------------------------------------------
+  قواعد محسوبة داخل الصفحة (مطابقة للنموذج):
+    - العنصر بلا جار مشغول = «بذرة» (إطار برتقالي متقطع)، وأي جار جديد يُجذّره ويُجذّر جيرانه البذور.
+    - برج (X) اكتسب رابطين يتحوّل تلقائيًا إلى منارة (L).
+    - زهرة (F) على تربة خصبة تتحوّل تلقائيًا إلى حديقة (B).
+    - فراغ محميّ (V) حوله ٤+ شجرات من نوعين وماء في الجوار يتحوّل إلى مقام أخضر (A).
+    - رمل (D) عند مصب مجرى متصل بالنبع وله فراغ مفتوح يمتدّ دلتا (d) من نفسه.
+    - التحلّل قرار المشغّل المعلن (بعد ٣ أدوار عزلة) عبر __decompose — لا يحدث خلسة.
+  ============================================================
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #0b1020; font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; }
+
+  /* حاوية 9:16 — تتمدد مع أي شاشة وتحافظ على النسبة */
+  #stage {
+    position: relative; width: min(100vw, 56.25vh); height: min(177.78vw, 100vh);
+    aspect-ratio: 9 / 16; background: linear-gradient(180deg, #0f1a2e 0%, #12233d 55%, #0d1f2d 100%);
+    color: #f8fafc; overflow: hidden; display: flex; flex-direction: column;
+    padding: 3.2% 4%; gap: 1.1%;
+  }
+
+  #title { text-align: center; font-size: clamp(20px, 5.4vw, 44px); font-weight: 800; letter-spacing: .2px; }
+  #worldName { text-align: center; font-size: clamp(13px, 3.4vw, 26px); color: #fbbf24; min-height: 1.2em; font-weight: 700; }
+  #howto {
+    text-align: center; font-size: clamp(12px, 3.3vw, 25px); line-height: 1.5;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+    border-radius: 12px; padding: 2% 3%;
+  }
+  #howto b { color: #7dd3fc; }
+  #phaseRow { display: flex; justify-content: center; }
+  #phase {
+    background: #7c3aed; color: #fff; font-weight: 700; border-radius: 999px;
+    padding: 1% 5%; font-size: clamp(13px, 3.6vw, 27px);
+  }
+  #goal { text-align: center; font-size: clamp(13px, 3.5vw, 26px); color: #a7f3d0; font-weight: 700; }
+
+  /* شريط شروط الحياة — يضوي شرطًا شرطًا بقرار المشغّل (__life) */
+  #lifeRow { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .lifeChip {
+    border: 1px solid rgba(255,255,255,.22); color: #cbd5e1; border-radius: 999px;
+    padding: .6% 3%; font-size: clamp(10px, 2.7vw, 20px); opacity: .45; transition: all .4s ease;
+  }
+  .lifeChip.on {
+    background: #065f46; border-color: #34d399; color: #ecfdf5; opacity: 1;
+    box-shadow: 0 0 12px rgba(52, 211, 153, .55); font-weight: 700;
+  }
+
+  /* الشبكة: 12 عمودًا — نفس نموذج المحاكاة 10×12 */
+  #gridWrap { transition: transform 1.2s ease; }
+  #grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+  .cell {
+    aspect-ratio: 1; border-radius: 6px; background: rgba(255,255,255,.06);
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: clamp(7px, 1.9vw, 15px); line-height: 1.05; padding: 1px; color: #e2e8f0;
+    border: 1.5px solid transparent; overflow: hidden; word-break: break-word;
+  }
+  .cell.seed { border: 1.5px dashed #f59e0b; opacity: .88; }
+  .cell.fertile { background: #fef3c7; color: #92400e; border: 1px dotted #d97706; }
+  #stage.frozen #gridWrap { transform: scale(.94); }
+  #stage.frozen #grid { box-shadow: 0 0 44px rgba(52, 211, 153, .35); border-radius: 10px; }
+
+  #legend { font-size: clamp(9px, 2.4vw, 18px); color: #cbd5e1; text-align: center; line-height: 1.6; }
+
+  /* شريط إعلان الأحداث (انبثاق / تبنٍّ / تحوّل) */
+  #banner {
+    position: absolute; inset-inline: 5%; top: 34%; z-index: 5; text-align: center;
+    background: rgba(5, 46, 22, .93); border: 2px solid #34d399; color: #ecfdf5;
+    border-radius: 14px; padding: 4% 5%; font-size: clamp(15px, 4.2vw, 32px); font-weight: 700;
+    opacity: 0; pointer-events: none; transition: opacity .35s ease;
+  }
+  #banner.show { opacity: 1; }
+
+  /* شريط المساهمين */
+  #contribLabel { font-size: clamp(11px, 2.8vw, 21px); color: #fbbf24; font-weight: 700; }
+  #contrib {
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
+    padding: 2% 3%; font-size: clamp(12px, 3.1vw, 23px); line-height: 1.7; min-height: 3.2em;
+  }
+  #queueLine { font-size: clamp(11px, 2.8vw, 20px); color: #a5b4fc; min-height: 1.3em; }
+  .spacer { flex: 1; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="title">عالم يُولد مرة واحدة</div>
+  <div id="worldName"></div>
+  <div id="goal">بنبني مكان يصلح للحياة</div>
+  <div id="howto">اكتب حاجة ومكانها: <b>ازرع شجرة في ب٣</b> — وهتظهر باسمك</div>
+  <div id="phaseRow"><div id="phase">طور البذور</div></div>
+  <div id="lifeRow">
+    <div class="lifeChip" id="life1">مية لكل مكان</div>
+    <div class="lifeChip" id="life2">ضل على الطرق</div>
+    <div class="lifeChip" id="life3">نور عند التقاطعات</div>
+    <div class="lifeChip" id="life4">مركز بيجمع الكل</div>
+  </div>
+
+  <div id="gridWrap"><div id="grid"></div></div>
+
+  <div id="legend"></div>
+
+  <div id="banner"></div>
+
+  <div class="spacer"></div>
+  <div id="queueLine"></div>
+  <div id="contribLabel">صُنّاع العالم لحد دلوقتي:</div>
+  <div id="contrib">لسه محدش زرع حاجة… أول حجر مستني صاحبه.</div>
+</div>
+
+<script>
+"use strict";
+/* ================= بيانات العالم — مطابقة لنموذج sim.py ================= */
+const ROWS = 10, COLS = 12;
+const STYLE = {
+  W:  { bg:"#2563eb", fg:"#fff",    t:"نبع" },
+  S:  { bg:"#38bdf8", fg:"#fff",    t:"مجرى" },
+  Tp: { bg:"#166534", fg:"#fff",    t:"صنوبر" },
+  To: { bg:"#65a30d", fg:"#fff",    t:"بلوط" },
+  R:  { bg:"#78716c", fg:"#fff",    t:"طريق" },
+  X:  { bg:"#111827", fg:"#f9fafb", t:"برج أسود" },
+  L:  { bg:"#7c3aed", fg:"#fff",    t:"منارة",  glow:"0 0 10px #a78bfa" },
+  V:  { bg:"#ecfdf5", fg:"#065f46", t:"فراغ محمي" },
+  A:  { bg:"#059669", fg:"#fff",    t:"المقام الأخضر", glow:"0 0 12px #34d399" },
+  Z:  { bg:"#9ca3af", fg:"#111827", t:"تمثال" },
+  G:  { bg:"#84cc16", fg:"#1a2e05", t:"متسلّقة" },
+  D:  { bg:"#d6a419", fg:"#fff",    t:"رمل/طين" },
+  d:  { bg:"#14b8a6", fg:"#fff",    t:"دلتا",   glow:"0 0 12px #2dd4bf" },
+  F:  { bg:"#ec4899", fg:"#fff",    t:"زهرة" },
+  B:  { bg:"#be185d", fg:"#fff",    t:"حديقة",  glow:"0 0 12px #f472b6" }
+};
+const grid = Array.from({length: ROWS}, () => Array(COLS).fill(null)); // {code, by, seed}
+const fertile = new Set();      // "r,c" — تربة خصّبها تحلّل
+const contributors = [];        // أسماء بالترتيب، بلا تكرار
+let frozen = false;
+
+const key = (r, c) => r + "," + c;
+function neighbors8(r, c) {
+  const out = [];
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    if (!dr && !dc) continue;
+    const nr = r + dr, nc = c + dc;
+    if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) out.push([nr, nc]);
+  }
+  return out;
+}
+function connections(r, c) {
+  return neighbors8(r, c).filter(([nr, nc]) => grid[nr][nc]).length;
+}
+
+/* ================= العرض ================= */
+const gridEl = document.getElementById("grid");
+function render() {
+  let html = "";
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const cell = grid[r][c];
+    if (cell) {
+      const st = STYLE[cell.code] || { bg:"#999", fg:"#fff", t:cell.code };
+      html += `<div class="cell${cell.seed ? " seed" : ""}" style="background:${st.bg};color:${st.fg}${st.glow ? ";box-shadow:" + st.glow : ""}" title="${st.t} — ${cell.by}">${st.t}</div>`;
+    } else if (fertile.has(key(r, c))) {
+      html += `<div class="cell fertile">تربة خصبة</div>`;
+    } else {
+      html += `<div class="cell"></div>`;
+    }
+  }
+  gridEl.innerHTML = html;
+  const contribEl = document.getElementById("contrib");
+  contribEl.textContent = contributors.length
+    ? contributors.join(" • ")
+    : "لسه محدش زرع حاجة… أول حجر مستني صاحبه.";
+}
+
+/* ================= قواعد العالم (نفس النموذج) ================= */
+function refreshRules(changedR, changedC) {
+  // تجذّر: أي بذرة اكتسبت جارًا تتجذّر، وجيرانها البذور يتجذّرون بها
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const cell = grid[r][c];
+    if (cell && cell.seed && connections(r, c) >= 1) cell.seed = false;
+  }
+  // تحوّل البرج: رابطان = منارة
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const cell = grid[r][c];
+    if (cell && cell.code === "X" && connections(r, c) >= 2) {
+      cell.code = "L"; cell.seed = false;
+      __banner("اتحوّل! برج " + cell.by + " الأسود بقى «منارة الحافة» — اتبنّاه اتنين واتجذّر");
+    }
+  }
+  // انبثاق المقام الأخضر: فراغ محمي + ٤ شجرات من نوعين حوله + ماء في الجوار
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const cell = grid[r][c];
+    if (!cell || cell.code !== "V") continue;
+    const trees = neighbors8(r, c).map(([nr, nc]) => grid[nr][nc]).filter(x => x && (x.code === "Tp" || x.code === "To"));
+    const species = new Set(trees.map(x => x.code));
+    let waterNear = false;
+    for (let nr = Math.max(0, r - 2); nr < Math.min(ROWS, r + 3); nr++)
+      for (let nc = Math.max(0, c - 2); nc < Math.min(COLS, c + 3); nc++)
+        if (grid[nr][nc] && (grid[nr][nc].code === "W" || grid[nr][nc].code === "S")) waterNear = true;
+    if (trees.length >= 4 && species.size >= 2 && waterNear) {
+      cell.code = "A"; cell.seed = false;
+      __banner("انبثاق! «المقام الأخضر» اتولد — محدش اختاره، العلاقات هي اللي عملته");
+    }
+  }
+  // انبثاق الدلتا: رمل يلمس مجرى متصلًا بالنبع وله خليتان فاضيتان على الأقل
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const cell = grid[r][c];
+    if (!cell || cell.code !== "D") continue;
+    const n4 = [[1,0],[-1,0],[0,1],[0,-1]].map(([dr, dc]) => [r + dr, c + dc])
+      .filter(([nr, nc]) => nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS);
+    const touchesStream = n4.some(([nr, nc]) => grid[nr][nc] && grid[nr][nc].code === "S");
+    const open = n4.filter(([nr, nc]) => !grid[nr][nc]);
+    if (touchesStream && open.length >= 2) {
+      cell.code = "d";
+      open.slice(0, 2).forEach(([nr, nc]) => { grid[nr][nc] = { code: "d", by: "العالم نفسه", seed: false }; });
+      __banner("انبثاق! «دلتا» خصبة امتدت لوحدها — صاحب الرمل حط رمل بس");
+    }
+  }
+}
+
+/* ================= دوال المشغّل (واجهة اللايف) ================= */
+// PLACEHOLDER INTEGRATION: لا يوجد ربط شات حقيقي بعد.
+// المشغّل يقرأ أوامر الشات وينادي الدوال دي يدويًا من Console المتصفح.
+window.__place = function(code, r, c, by) {
+  if (frozen) { console.warn("العالم متجمّد — انتهت الإضافة"); return false; }
+  if (!STYLE[code] || r < 0 || r >= ROWS || c < 0 || c >= COLS) { console.warn("أمر غير صالح", code, r, c); return false; }
+  if (grid[r][c]) { console.warn("الخلية مشغولة"); return false; }
+  by = by || "مجهول";
+  // زهرة على تربة خصبة = حديقة (انبثاق)
+  if (code === "F" && fertile.has(key(r, c))) {
+    grid[r][c] = { code: "B", by, seed: false };
+    fertile.delete(key(r, c));
+    __banner("انبثاق! زهرة " + by + " نمت «حديقة» كاملة على تربة خصّبها تحلّل");
+  } else {
+    const seed = connections(r, c) === 0 && code !== "W";
+    grid[r][c] = { code, by, seed };
+    fertile.delete(key(r, c));
+  }
+  if (!contributors.includes(by)) { contributors.push(by); }
+  refreshRules(r, c);
+  render();
+  return true;
+};
+
+// إحداثيات الشات: حرف الصف (أ=أول صف من فوق … ي=العاشر) + رقم العمود من اليمين (١ = أقصى اليمين)
+const ROW_LETTERS = ["أ","ب","ج","د","هـ","و","ز","ح","ط","ي"];
+window.__placeAr = function(code, rowLetter, colNumFromRight, by) {
+  const r = ROW_LETTERS.indexOf(rowLetter);
+  const c = COLS - Number(colNumFromRight);
+  if (r < 0 || c < 0 || c >= COLS) { console.warn("إحداثيات غير صالحة", rowLetter, colNumFromRight); return false; }
+  return window.__place(code, r, c, by);
+};
+
+// التحلّل المعلن: المشغّل يناديها بعد ٣ أدوار عزلة كاملة للبذرة — قدام الجمهور، لا خلسة
+window.__decompose = function(r, c) {
+  const cell = grid[r] && grid[r][c];
+  if (!cell) return false;
+  grid[r][c] = null;
+  fertile.add(key(r, c));
+  __banner("تحلّل: عنصر " + cell.by + " فضل لوحده فاتحلّل… وخصّب تربة مكانه");
+  render();
+  return true;
+};
+
+window.__setPhase = function(name) {
+  document.getElementById("phase").textContent = name;
+};
+window.__setWorldName = function(name) {
+  document.getElementById("worldName").textContent = "اسم العالم: " + name;
+};
+let bannerTimer = null;
+window.__banner = function(text) {
+  const b = document.getElementById("banner");
+  b.textContent = text;
+  b.classList.add("show");
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => b.classList.remove("show"), 6000);
+};
+window.__queue = function(text) {
+  document.getElementById("queueLine").textContent = text || "";
+};
+// شروط الحياة: المشغّل يضوي/يطفي كل شرط يدويًا بعد ما يحكم بالاختبار العلاقي في RULES-CARD.md
+window.__life = function(idx) {
+  const el = document.getElementById("life" + idx);
+  if (el) el.classList.toggle("on");
+};
+window.__freeze = function() {
+  frozen = true;
+  document.getElementById("stage").classList.add("frozen");
+  window.__setPhase("التجميد — العالم اكتمل");
+};
+
+render(); // العالم يبدأ فارغًا
+</script>
+<script>
+/* ============================================================
+   لوحة المشغّل (إضافة اختيارية بالكامل) — تظهر فقط عند فتح الصفحة
+   بباراميتر ?panel=1، لاستخدامها حين تكون الصفحة نفسها مصدر البث
+   (مشاركة شاشة المتصفح). بدون الباراميتر لا يتغيّر أي شيء إطلاقًا.
+   أمان الـ Node: سكربت الصفحة يُشغَّل أيضًا داخل stream/drive-live.js
+   فوق DOM stub — محرّكا البث يقرآن أول <script> فقط وهذا البلوك
+   منفصل عنهما، وداخله حرّاس typeof + try/catch فيعمل no-op هناك.
+   ============================================================ */
+(function () {
+  try {
+    if (typeof window === "undefined" || typeof document === "undefined" || typeof location === "undefined") return;
+    if (!/[?&]panel=1(?:[&#]|$)/.test(String(location.search || "") + "&")) return;
+
+    var css = ""
+      + "#opPanel{position:fixed;z-index:60;left:0;right:0;bottom:0;max-height:48vh;overflow-y:auto;"
+      + "background:rgba(8,12,24,.97);color:#e2e8f0;border-top:2px solid rgba(255,255,255,.28);"
+      + "font-size:13px;padding:6px 8px;box-sizing:border-box}"
+      + "@media (min-aspect-ratio: 4/5){#opPanel{top:0;bottom:0;right:auto;width:302px;max-height:none;"
+      + "border-top:none;border-inline-end:2px solid rgba(255,255,255,.28)}}"
+      + "#opPanel.opCollapsed{max-height:none;overflow:visible}"
+      + "@media (min-aspect-ratio: 4/5){#opPanel.opCollapsed{width:auto}}"
+      + "#opPanel.opCollapsed .opBody{display:none}"
+      + "#opPanel .opHead{display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-bottom:6px}"
+      + "#opPanel .opRow{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}"
+      + "#opPanel input{background:#111827;color:#e5e7eb;border:1px solid rgba(255,255,255,.3);"
+      + "border-radius:6px;padding:4px 6px;font-size:13px;min-width:0}"
+      + "#opPanel button{background:#7c3aed;color:#fff;border:none;border-radius:6px;"
+      + "padding:4px 10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}"
+      + "#opPanel button:active{filter:brightness(1.3)}"
+      + "#opPanel button.opDanger{background:#b91c1c}"
+      + "#opPanel button.opGhost{background:#334155}"
+      + "#opStatus{font-size:12px;color:#a5b4fc;min-height:1.3em;line-height:1.4}";
+    var st = document.createElement("style");
+    st.textContent = css;
+    document.head.appendChild(st);
+
+    var panel = document.createElement("div");
+    panel.id = "opPanel";
+    panel.setAttribute("dir", "rtl");
+    panel.innerHTML = ""
+      + '<div class="opHead"><span>🎛️ لوحة المشغّل</span>'
+      + '<button type="button" class="opGhost" data-act="toggle">إخفاء</button></div>'
+      + '<div class="opBody">'
+      +   '<div class="opRow">'
+      +     '<input id="opArName" placeholder="العنصر: شجرة" size="9">'
+      +     '<input id="opArCell" placeholder="الخلية: ب٣" size="7">'
+      +     '<input id="opArBy" placeholder="اسم المساهم" size="10">'
+      +     '<button type="button" data-act="ar">ضع</button>'
+      +   '</div>'
+      +   '<div class="opRow">'
+      +     '<input id="opRawCode" placeholder="كود Tp" size="6">'
+      +     '<input id="opRawR" placeholder="صف 0" size="5" inputmode="numeric">'
+      +     '<input id="opRawC" placeholder="عمود 0" size="6" inputmode="numeric">'
+      +     '<input id="opRawBy" placeholder="الاسم" size="8">'
+      +     '<button type="button" data-act="raw">ضع (خام)</button>'
+      +   '</div>'
+      +   '<div class="opRow">'
+      +     '<input id="opDecR" placeholder="صف" size="5" inputmode="numeric">'
+      +     '<input id="opDecC" placeholder="عمود" size="6" inputmode="numeric">'
+      +     '<button type="button" data-act="dec">تحلّل</button>'
+      +     '<input id="opPhase" placeholder="اسم الطور" size="10">'
+      +     '<button type="button" data-act="phase">غيّر الطور</button>'
+      +   '</div>'
+      +   '<div class="opRow">'
+      +     '<input id="opBanner" placeholder="نص البنر" size="18">'
+      +     '<button type="button" data-act="banner">بنر</button>'
+      +     '<button type="button" class="opDanger" data-act="freeze">تجميد</button>'
+      +   '</div>'
+      +   '<div id="opStatus">جاهز.</div>'
+      + '</div>';
+    document.body.appendChild(panel);
+
+    function $(id) { return document.getElementById(id); }
+    function status(msg) { var s = $("opStatus"); if (s) s.textContent = msg; }
+    function digits(s) {
+      return String(s == null ? "" : s)
+        .replace(/[٠-٩]/g, function (d) { return "٠١٢٣٤٥٦٧٨٩".indexOf(d); })
+        .replace(/[۰-۹]/g, function (d) { return "۰۱۲۳۴۵۶۷۸۹".indexOf(d); });
+    }
+    var ROW_LETTERS = ["أ", "ب", "ج", "د", "هـ", "و", "ز", "ح", "ط", "ي"];
+    function parseCell(text) {
+      text = digits(String(text || "").replace(/\s+/g, ""));
+      var letters = ROW_LETTERS.slice().sort(function (a, b) { return b.length - a.length; });
+      for (var i = 0; i < letters.length; i++) {
+        if (text.indexOf(letters[i]) === 0) {
+          var n = parseInt(text.slice(letters[i].length), 10);
+          if (!isNaN(n)) return { letter: letters[i], col: n };
+        }
+      }
+      return null;
+    }
+    // أسماء العناصر بالعربي → أكواد النظام (مفاتيح مُطبَّعة: أ/إ/آ → ا)
+    var AR_CODES = {
+      "نبع": "W", "مجرى": "S", "نهر": "S",
+      "شجرة": "Tp", "صنوبر": "Tp",
+      "بلوط": "To",
+      "طريق": "R",
+      "برج": "X", "برج اسود": "X",
+      "فراغ": "V", "فراغ محمي": "V",
+      "تمثال": "Z",
+      "متسلقة": "G",
+      "رمل": "D", "طين": "D",
+      "زهرة": "F", "وردة": "F"
+    };
+    function normName(s) { return String(s || "").trim().replace(/\s+/g, " ").replace(/[أإآ]/g, "ا"); }
+
+    var actions = {
+      toggle: function (btn) {
+        panel.classList.toggle("opCollapsed");
+        btn.textContent = panel.classList.contains("opCollapsed") ? "لوحة المشغّل" : "إخفاء";
+      },
+      ar: function () {
+        var name = normName($("opArName").value);
+        var code = AR_CODES[name];
+        if (!code) { status("عنصر غير معروف: «" + name + "» — جرّب: نبع، مجرى، شجرة، بلوط، طريق، برج، فراغ، تمثال، متسلقة، رمل، زهرة"); return; }
+        var cell = parseCell($("opArCell").value);
+        if (!cell) { status("خلية غير مفهومة — اكتبها زي الشات: ب٣"); return; }
+        var by = $("opArBy").value.trim() || "مجهول";
+        status("__placeAr(" + code + ", " + cell.letter + ", " + cell.col + ", " + by + ") ← " + window.__placeAr(code, cell.letter, cell.col, by));
+      },
+      raw: function () {
+        var code = $("opRawCode").value.trim();
+        var r = parseInt(digits($("opRawR").value), 10);
+        var c = parseInt(digits($("opRawC").value), 10);
+        var by = $("opRawBy").value.trim() || "مجهول";
+        status("__place(" + code + ", " + r + ", " + c + ", " + by + ") ← " + window.__place(code, r, c, by));
+      },
+      dec: function () {
+        var r = parseInt(digits($("opDecR").value), 10);
+        var c = parseInt(digits($("opDecC").value), 10);
+        status("__decompose(" + r + ", " + c + ") ← " + window.__decompose(r, c));
+      },
+      phase: function () {
+        window.__setPhase($("opPhase").value);
+        status("الطور ← " + $("opPhase").value);
+      },
+      banner: function () {
+        window.__banner($("opBanner").value);
+        status("بنر ← " + $("opBanner").value);
+      },
+      freeze: function () {
+        window.__freeze();
+        status("اتجمّد العالم.");
+      }
+    };
+
+    panel.addEventListener("click", function (ev) {
+      try {
+        var btn = ev.target && ev.target.closest ? ev.target.closest("button[data-act]") : null;
+        if (btn && actions[btn.getAttribute("data-act")]) actions[btn.getAttribute("data-act")](btn);
+      } catch (e) { status("خطأ: " + e.message); }
+    });
+    panel.addEventListener("keydown", function (ev) {
+      try {
+        if (ev.key === "Enter" && ev.target && ev.target.tagName === "INPUT") {
+          ev.preventDefault();
+          var row = ev.target.closest(".opRow");
+          var btn = row && row.querySelector("button[data-act]");
+          if (btn) btn.click();
+        }
+      } catch (e) { /* إدخال المشغّل لا يكسر البث أبدًا */ }
+    });
+  } catch (e) { /* اللوحة إضافة تجميلية للمشغّل — أي فشل فيها صامت ولا يمسّ البث */ }
+})();
+</script>
+</body>
+</html>
