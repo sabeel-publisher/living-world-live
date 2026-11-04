@@ -18,8 +18,17 @@ sleep 3
 echo "engine state:"; tail -n 2 drive.log || true
 echo "pump state:"; tail -n 2 pump.log || true
 
-python3 draw-ci.py --stream 2> draw.log | ffmpeg -hide_banner -loglevel warning \
-  -f image2pipe -framerate 30 -i - \
-  -c:v libx264 -pix_fmt yuv420p -r 30 -preset veryfast -maxrate 4500k -bufsize 9000k -g 60 \
-  -f flv "rtmp://live.restream.io/live/$RST_KEY"
-echo "ffmpeg exited — stream ended"
+# ffmpeg with retry: a freshly-killed previous session can make Restream
+# reject the first attempts ("End of file") while it releases the event.
+attempt=1
+while [ $attempt -le 12 ]; do
+  echo "ffmpeg attempt $attempt $(date -u +%H:%M:%S)"
+  python3 draw-ci.py --stream 2> draw.log | ffmpeg -hide_banner -loglevel warning \
+    -f image2pipe -framerate 30 -i - \
+    -c:v libx264 -pix_fmt yuv420p -r 30 -preset veryfast -maxrate 4500k -bufsize 9000k -g 60 \
+    -f flv "rtmp://live.restream.io/live/$RST_KEY"
+  echo "ffmpeg exited (attempt $attempt) — retrying in 20s"
+  attempt=$((attempt + 1))
+  sleep 20
+done
+echo "all ffmpeg attempts exhausted — stream ended"
